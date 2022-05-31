@@ -21,7 +21,7 @@ class Differential:
     Parameters
     ----------
     data: [Data] Data object containing dataset information
-    metric: [string] Choice of metric for optimization [accuracy (default), precision, recall or f1-score]
+    metric: [string] Choice of metric for optimization [accuracy (default), precision or recall]
     list_exp: [list: string] List of learning methods for experiments running in parallel
               - "LR": logistic regression (default)
               - "SVM": support vector machines

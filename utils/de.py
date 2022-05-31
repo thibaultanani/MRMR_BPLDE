@@ -3,7 +3,7 @@
 from classes import Data
 from numpy import ndarray
 from scipy import stats
-from typing import List
+from typing import List, Tuple, Union
 from utils import feature
 
 import numpy as np
@@ -50,19 +50,20 @@ def remove_duplicate(archive: List[List], size: int) -> List[List]:
 
 def update_param(learning_rate: float, muCR: float, SCR: List[float]) -> float:
     try:
-        muCR = (1 - learning_rate) * muCR + learning_rate * (sum(SCR)/len(SCR))
+        muCR = (1 - learning_rate) * muCR + learning_rate * (sum(SCR) / len(SCR))
     except ZeroDivisionError:
         muCR = (1 - learning_rate) * muCR + learning_rate * 0.5
     return muCR
 
 
 def evaluation_pop(n_class: int, data: Data, P: ndarray, target: str, metric: str, method: str) -> \
-        tuple[list[float], list[float], list[float], list[float], list[float], list[ndarray], list[list[str]]]:
+        Tuple[List[float], List[float], List[float], List[float], List[float], List[ndarray],
+              Union[List[List[str]], List[str]]]:
     return feature.fitness(n_class=n_class, d=data, pop=P, target_name=target, metric=metric, method=method)
 
 
-def evaluation_ind(n_class: int, data: Data, ind: ndarray, target: str, metric: str, method: str) ->\
-        tuple[float, float, float, float, float, ndarray, list]:
+def evaluation_ind(n_class: int, data: Data, ind: ndarray, target: str, metric: str, method: str) -> \
+        Tuple[float, float, float, float, float, ndarray, list]:
     return feature.fitness_ind(n_class=n_class, d=data, ind=ind, target_name=target, metric=metric, method=method)
 
 
@@ -90,7 +91,7 @@ def mutate(P: ndarray, n_ind: int, i: int, pindex: int, archive_index: int, Xpbe
     return mutant
 
 
-def get_entropy(pop: ndarray, inds: int, size: int) -> list[float]:
+def get_entropy(pop: ndarray, inds: int, size: int) -> List[float]:
     truth_list = []
     false_list = []
     for i in range(size):
@@ -110,5 +111,3 @@ def get_entropy(pop: ndarray, inds: int, size: int) -> list[float]:
             log_false = 0.0
         entropy.append(-(log_true + log_false))
     return entropy
-
-

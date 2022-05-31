@@ -32,8 +32,10 @@ class Differential:
     Gmax: [int] Number of generations/iterations for the algorithm
     LR: [float (0.0:1.0)] (learning_rate) Speed at which the crossover probability is going to converge toward 0 or 1
     alpha: [float] Speed at which the number of p decrease for selecting one of p_best indivuals
+    mrmr: [bool] Choice to use the mrmr for the initialization of the metaheuristic
     """
-    def __init__(self, data: Data, metric: str, list_exp: List[str], N: int, Gmax: int, LR: float, alpha: float):
+    def __init__(self, data: Data, metric: str, list_exp: List[str], N: int, Gmax: int, LR: float, alpha: float,
+                 mrmr: bool):
         self.Data = data
         self.metric = metric
         self.list_exp = list_exp
@@ -41,14 +43,20 @@ class Differential:
         self.Gmax = Gmax
         self.LR = LR
         self.alpha = alpha
+        self.mrmr = mrmr
+        if self.mrmr:
+            self.mrmr_cols = feature.filtering(data=self.Data.data, target=self.Data.target, k=self.Data.D,
+                                               dataset=self.Data.dataset)
+        else:
+            self.mrmr_cols = None
         # Path to the directory 'out' containing the logs and graphics
-        self.path2 = os.path.dirname(os.getcwd()) + '/out/' + self.Data.dataset
+        self.path2 = os.path.join(os.path.dirname(os.getcwd()), os.path.join('out', self.Data.dataset))
         feature.cleanOut(path=self.path2)
 
-    def write_res(self, folderName: str, probas: list[float], y1: list[float], y2: list[float], colMax: list[str],
-                  bestScorePro: list[float], bestAPro: list[float], bestPPro: list[float], bestRPro: list[float],
-                  bestFPro: list[float], bestModelPro: list[ndarray], bestScore: float, bestScoreA: float,
-                  bestScoreP: float, bestScoreR: float, bestScoreF: float, bestModel: ndarray, bestInd: list[bool],
+    def write_res(self, folderName: str, probas: List[float], y1: List[float], y2: List[float], colMax: List[str],
+                  bestScorePro: List[float], bestAPro: List[float], bestPPro: List[float], bestRPro: List[float],
+                  bestFPro: List[float], bestModelPro: List[ndarray], bestScore: float, bestScoreA: float,
+                  bestScoreP: float, bestScoreR: float, bestScoreF: float, bestModel: ndarray, bestInd: List[bool],
                   debut: float, out: str, yTps, yVars, method: str) -> None:
         a = os.path.join(os.path.join(self.path2, folderName), 'results.txt')
         f = open(a, "w")
@@ -97,13 +105,33 @@ class Differential:
             # Parameters initialisation
             muCR, muCRLst, G = 0.5, [], 0
             # Population P initialisation
-            P = feature.create_population_feature(inds=self.N, size=self.Data.D)
+            if self.mrmr:
+                # Try to find best K randomly
+                P = feature.create_population_mrmr(inds=self.N*5, size=self.Data.D, mrmr_cols=self.mrmr_cols,
+                                                   data_cols=self.Data.cols)
+            else:
+                P = feature.create_population(inds=self.N, size=self.Data.D)
             # Archive A initialisation
             A = []
             # Evaluates population
             scores, scoresA, scoresP, scoresR, scoresF, models, cols = \
                 de.evaluation_pop(n_class=self.Data.n_class, data=self.Data.data, P=P, target=self.Data.target,
                                   metric=self.metric, method=method)
+            if self.mrmr:
+                # We take the best mrmr feature subset and add random solutions to create population
+                P_tmp = feature.create_population(inds=self.N-1, size=self.Data.D)
+                index = (-np.array(scores)).argsort()[::1][0]
+                scores_tmp, scoresA_tmp, scoresP_tmp, scoresR_tmp, scoresF_tmp, models_tmp, cols_tmp = \
+                    de.evaluation_pop(n_class=self.Data.n_class, data=self.Data.data, P=P_tmp, target=self.Data.target,
+                                      metric=self.metric, method=method)
+                [scores[index]].append(scores_tmp)
+                [scoresA[index]].append(scoresA_tmp)
+                [scoresR[index]].append(scoresR_tmp)
+                [scoresF[index]].append(scoresF_tmp)
+                [models[index]].append(models_tmp)
+                [cols[index]].append(cols_tmp)
+                [P[index]].append(P_tmp)
+
             bestScore, worstScore, bestModel, bestInd, bestCols, bestScoreA, bestScoreP, bestScoreR, \
             bestScoreF, bestScorePro, bestModelPro, bestIndsPro, bestColsPro, bestAPro, bestPPro, bestRPro, bestFPro = \
                 feature.add(scores=scores, models=models, inds=P, cols=cols, scoresA=scoresA, scoresP=scoresP,

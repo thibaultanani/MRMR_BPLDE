@@ -1,5 +1,4 @@
 # Implementation of methods specific to the feature selection problem
-
 from datetime import timedelta
 
 import numpy as np
@@ -10,6 +9,7 @@ import os
 import random
 import matplotlib.pyplot as plt
 import openpyxl
+import json
 
 from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.svm import LinearSVC
@@ -22,8 +22,9 @@ from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, prec
 from sklearn import model_selection
 from sklearn.utils import class_weight
 
-from typing import Union, Sequence
+from typing import Union, Sequence, Tuple, List
 from numpy import ndarray
+from mrmr import mrmr_classif
 
 
 def cleanOut(path: str) -> None:
@@ -61,7 +62,7 @@ def getMethod(method: str) -> Union[Sequence, str]:
         return 'lr'
 
 
-def create_population_feature(inds: int, size: int) -> ndarray:
+def create_population(inds: int, size: int) -> ndarray:
     # Initialise the population
     pop = np.zeros((inds, size), dtype=bool)
     for i in range(inds):
@@ -70,7 +71,20 @@ def create_population_feature(inds: int, size: int) -> ndarray:
     return pop
 
 
-def preparation(data: pd.DataFrame, ind: ndarray, target: str) -> tuple[pd.DataFrame, list[str]]:
+def create_population_mrmr(inds: int, size: int, mrmr_cols: List[str], data_cols: List[str]) -> ndarray:
+    # Initialise the population with mrmr
+    pop = np.zeros((inds, size), dtype=bool)
+    for i in range(inds):
+        k = random.randint(1, size)
+        for j in range(len(data_cols)):
+            if data_cols[j] in mrmr_cols[0:k]:
+                pop[i][j] = True
+            else:
+                pop[i][j] = False
+    return pop
+
+
+def preparation(data: pd.DataFrame, ind: ndarray, target: str) -> Tuple[pd.DataFrame, List[str]]:
     # Selects columns based on the value of an individual
     copy = data.copy()
     copy_target = copy[target]
@@ -85,7 +99,7 @@ def preparation(data: pd.DataFrame, ind: ndarray, target: str) -> tuple[pd.DataF
     return copy, cols_selection
 
 
-def cross_validation(nfold: int, X: list, y: list, model, matrix: ndarray) -> tuple[ndarray, list, list]:
+def cross_validation(nfold: int, X: list, y: list, model, matrix: ndarray) -> Tuple[ndarray, list, list]:
     # Cross-validation to ensure that learning is representative of the whole dataset
     k = model_selection.StratifiedKFold(nfold)
     y_test_lst = []
@@ -107,7 +121,7 @@ def cross_validation(nfold: int, X: list, y: list, model, matrix: ndarray) -> tu
     return matrix, y_test_lst, y_pred_lst
 
 
-def learning(n_class: int, data: pd.DataFrame, target: str, method: str) -> tuple[float, float, float, float, ndarray]:
+def learning(n_class: int, data: pd.DataFrame, target: str, method: str) -> Tuple[float, float, float, float, ndarray]:
     # Performs learning according to the chosen method
     X = data.drop([target], axis=1).values
     y = data[target].values
@@ -138,7 +152,7 @@ def learning(n_class: int, data: pd.DataFrame, target: str, method: str) -> tupl
 
 
 def fitness_ind(n_class: int, d: pd.DataFrame, ind: ndarray, target_name: str, metric: str, method: str) ->\
-        tuple[float, float, float, float, float, ndarray, list]:
+        Tuple[float, float, float, float, float, ndarray, list]:
     # Process of calculating the fitness for a single individual/subset
     if not any(ind):
         ind[random.randint(0, len(ind) - 1)] = True
@@ -158,7 +172,7 @@ def fitness_ind(n_class: int, d: pd.DataFrame, ind: ndarray, target_name: str, m
 
 
 def fitness(n_class: int, d: pd.DataFrame, pop: ndarray, target_name: str, metric: str, method: str) -> \
-        tuple[list[float], list[float], list[float], list[float], list[float], list[ndarray], list[list[str]]]:
+        Tuple[List[float], List[float], List[float], List[float], List[float], List[ndarray], List[List[str]]]:
     # Process of calculating the fitness for each individual of a population
     score_list, accuracy_list, precision_list, recall_list, fscore_list, col_list, matrix_list =\
         [], [], [], [], [], [], []
@@ -186,12 +200,12 @@ def fitness(n_class: int, d: pd.DataFrame, pop: ndarray, target_name: str, metri
     return score_list, accuracy_list, precision_list, recall_list, fscore_list, matrix_list, col_list
 
 
-def add(scores: list[float], models: list[ndarray], inds: ndarray, cols: list[list[str]], scoresA: list[float],
-        scoresP: list[float], scoresR: list[float], scoresF: list[float], bestScorePro: list[float],
-        bestModelPro: list[ndarray], bestIndsPro: list[list[bool]], bestColsPro: list[list[str]], bestAPro: list[float],
-        bestPPro: list[float], bestRPro: list[float], bestFPro: list[float]) ->\
-        tuple[float, float, ndarray, list[bool], list[str], float, float, float, float, list[float], list[ndarray],
-              list[list[bool]], list[list[str]], list[float], list[float], list[float], list[float]]:
+def add(scores: List[float], models: List[ndarray], inds: ndarray, cols: List[List[str]], scoresA: List[float],
+        scoresP: List[float], scoresR: List[float], scoresF: List[float], bestScorePro: List[float],
+        bestModelPro: List[ndarray], bestIndsPro: List[List[bool]], bestColsPro: List[List[str]], bestAPro: List[float],
+        bestPPro: List[float], bestRPro: List[float], bestFPro: List[float]) ->\
+        Tuple[float, float, ndarray, List[bool], List[str], float, float, float, float, List[float], List[ndarray],
+              List[List[bool]], List[List[str]], List[float], List[float], List[float], List[float]]:
     argmax = np.argmax(scores)
     argmin = np.argmin(scores)
     bestScore = scores[argmax]
@@ -215,9 +229,9 @@ def add(scores: list[float], models: list[ndarray], inds: ndarray, cols: list[li
            bestScorePro, bestModelPro, bestIndsPro, bestColsPro, bestAPro, bestPPro, bestRPro, bestFPro
 
 
-def add_axis(bestScore: float, meanScore: float, iteration: int, time_debut: timedelta, n_features: int, x1: list[int],
-             y1: list[float], y2: list[float], yTps: list[float], yVars: list[int]) ->\
-        tuple[list[int], list[float], list[float], list[float], list[int]]:
+def add_axis(bestScore: float, meanScore: float, iteration: int, time_debut: timedelta, n_features: int, x1: List[int],
+             y1: List[float], y2: List[float], yTps: List[float], yVars: List[int]) ->\
+        Tuple[List[int], List[float], List[float], List[float], List[int]]:
     x1.append(iteration)
     y1.append(meanScore)
     y2.append(bestScore)
@@ -226,7 +240,7 @@ def add_axis(bestScore: float, meanScore: float, iteration: int, time_debut: tim
     return x1, y1, y2, yTps, yVars
 
 
-def plot_feature(x1: list[int], y1: list[float], y2: list[float], yTps: list[float], yVars: list[int],
+def plot_feature(x1: List[int], y1: List[float], y2: List[float], yTps: List[float], yVars: List[int],
                  n_pop: int, n_gen: int, heuristic: str, folderName: str, path: str, bestScore: float,
                  mean_scores: float, time_total: float, metric: str) -> None:
     fig, ax = plt.subplots()
@@ -336,3 +350,42 @@ def res(heuristic: str, besties: list, names: list, times: list, names2: list, f
     b = os.path.join(os.getcwd(), a)
     fig3.savefig(os.path.abspath(b), bbox_inches="tight")
     plt.close(fig3)
+
+
+def filtering(data: pd.DataFrame, target: str, k: int, dataset: str):
+    X = data.drop([target], axis=1)
+    y = data[target]
+
+    try:
+        # If mrmr selection is already saved
+        file = open(os.path.join(os.path.join(os.path.dirname(os.getcwd()), "mrmr_saves"),
+                                 dataset + '_' + target + '.txt'), 'r')
+        lines = file.readlines()
+        sorted_features = []
+        for l in lines:
+            sorted_features = l.replace("\n", "").replace("\'", "\"")
+            sorted_features = json.loads(sorted_features)
+    except FileNotFoundError:
+        # Otherwise, we calculate mrmr scores
+        sorted_features = mrmr_classif(X=X, y=y, K=k)
+        try:
+            file = open(os.path.join(os.path.join(os.path.dirname(os.getcwd()), "mrmr_saves"),
+                                     dataset + '_' + target + '.txt'), 'w')
+        except FileNotFoundError:
+            createDirectory(path=os.path.dirname(os.getcwd()), folderName="mrmr_saves")
+            file = open(os.path.join(os.path.join(os.path.dirname(os.getcwd()), "mrmr_saves"),
+                                     dataset + '_' + target + '.txt'), 'w')
+        file.write(str(sorted_features))
+    X = data[sorted_features].values
+    y = data[target]
+    cols = sorted_features
+
+    y = y.values
+
+    try:
+        cols = cols.tolist()
+    except AttributeError:
+        pass
+
+    return X, y, cols
+

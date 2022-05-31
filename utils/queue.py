@@ -3,16 +3,18 @@
 import multiprocessing
 from multiprocessing import Queue
 
+from typing import Tuple, List
 
-def init_() -> tuple[Queue, Queue, Queue, Queue, Queue, Queue, Queue]:
+
+def init_() -> Tuple[Queue, Queue, Queue, Queue, Queue, Queue, Queue]:
     return multiprocessing.Manager().Queue(), multiprocessing.Manager().Queue(), multiprocessing.Manager().Queue(),\
            multiprocessing.Manager().Queue(), multiprocessing.Manager().Queue(), multiprocessing.Manager().Queue(),\
            multiprocessing.Manager().Queue()
 
 
-def put_(y2: list[float], folderName: str, scoreMax: int, iteration: int, yTps: list[float], yVars: list[int],
+def put_(y2: List[float], folderName: str, scoreMax: int, iteration: int, yTps: List[float], yVars: List[int],
          feature: int, time: float, besties: Queue, names: Queue, names2: Queue, names3: Queue, iters: Queue,
-         times: Queue, features: Queue) -> tuple[Queue, Queue, Queue, Queue, Queue, Queue, Queue]:
+         times: Queue, features: Queue) -> Tuple[Queue, Queue, Queue, Queue, Queue, Queue, Queue]:
     besties.put(y2)
     names.put(folderName + ": " + "{:.2%}".format(scoreMax))
     iters.put(iteration)
@@ -24,7 +26,7 @@ def put_(y2: list[float], folderName: str, scoreMax: int, iteration: int, yTps: 
 
 
 def get_(n_process: int, besties: Queue, names: Queue, names2: Queue, iters: Queue, times: Queue, features: Queue,
-         names3: Queue) -> tuple[list, list, list, list, list, list, list]:
+         names3: Queue) -> Tuple[list, list, list, list, list, list, list]:
     bestiesLst = []
     namesLst = []
     itersLst = []

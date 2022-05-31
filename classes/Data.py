@@ -17,7 +17,7 @@ class Data:
         self.dataset = dataset
         self.target = target
         # Path to the directory 'in' containing the different datasets as excel/csv
-        self.path1 = os.path.dirname(os.getcwd()) + '/in/'
+        self.path1 = os.path.join(os.path.dirname(os.getcwd()), 'in/')
         # Dataset as DataFrame
         self.data = feature.read(filename=(self.path1 + dataset))
         # List of all explanatory features in datasets

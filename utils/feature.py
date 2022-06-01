@@ -240,9 +240,9 @@ def add_axis(bestScore: float, meanScore: float, iteration: int, time_debut: tim
     return x1, y1, y2, yTps, yVars
 
 
-def plot_feature(x1: List[int], y1: List[float], y2: List[float], yTps: List[float], yVars: List[int],
-                 n_pop: int, n_gen: int, heuristic: str, folderName: str, path: str, bestScore: float,
-                 mean_scores: float, time_total: float, metric: str) -> None:
+def plot(x1: List[int], y1: List[float], y2: List[float], yTps: List[float], yVars: List[int],
+         n_pop: int, n_gen: int, heuristic: str, folderName: str, path: str, bestScore: float,
+         mean_scores: float, time_total: float, metric: str) -> None:
     fig, ax = plt.subplots()
     ax.plot(x1, y1)
     ax.plot(x1, y2)
@@ -352,7 +352,7 @@ def res(heuristic: str, besties: list, names: list, times: list, names2: list, f
     plt.close(fig3)
 
 
-def filtering(data: pd.DataFrame, target: str, k: int, dataset: str):
+def filtering(data: pd.DataFrame, target: str, k: int, dataset: str) -> str:
     X = data.drop([target], axis=1)
     y = data[target]
 
@@ -376,16 +376,12 @@ def filtering(data: pd.DataFrame, target: str, k: int, dataset: str):
             file = open(os.path.join(os.path.join(os.path.dirname(os.getcwd()), "mrmr_saves"),
                                      dataset + '_' + target + '.txt'), 'w')
         file.write(str(sorted_features))
-    X = data[sorted_features].values
-    y = data[target]
     cols = sorted_features
-
-    y = y.values
 
     try:
         cols = cols.tolist()
     except AttributeError:
         pass
 
-    return X, y, cols
+    return cols
 

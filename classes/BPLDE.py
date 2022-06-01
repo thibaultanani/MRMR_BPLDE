@@ -29,13 +29,15 @@ class Differential:
               - "RDC": random forest
               - "GNB": gaussian naive bayes
     N: [int] Number of subsets evaluated per generation
-    Gmax: [int] Number of generations/iterations for the algorithm
+    Gmax: [int] Number of generations/iterations for alpha parameter to converge to 1.0
     LR: [float (0.0:1.0)] (learning_rate) Speed at which the crossover probability is going to converge toward 0 or 1
     alpha: [float] Speed at which the number of p decrease for selecting one of p_best indivuals
     mrmr: [bool] Choice to use the mrmr for the initialization of the metaheuristic
+    entropy: [float] Population diversity threshold for stopping the algorithm
     """
+
     def __init__(self, data: Data, metric: str, list_exp: List[str], N: int, Gmax: int, LR: float, alpha: float,
-                 mrmr: bool):
+                 mrmr: bool, entropy: float):
         self.Data = data
         self.metric = metric
         self.list_exp = list_exp
@@ -49,6 +51,7 @@ class Differential:
                                                dataset=self.Data.dataset)
         else:
             self.mrmr_cols = None
+        self.entropy = entropy
         # Path to the directory 'out' containing the logs and graphics
         self.path2 = os.path.join(os.path.dirname(os.getcwd()), os.path.join('out', self.Data.dataset))
         feature.cleanOut(path=self.path2)
@@ -107,7 +110,7 @@ class Differential:
             # Population P initialisation
             if self.mrmr:
                 # Try to find best K randomly
-                P = feature.create_population_mrmr(inds=self.N*5, size=self.Data.D, mrmr_cols=self.mrmr_cols,
+                P = feature.create_population_mrmr(inds=self.N * 5, size=self.Data.D, mrmr_cols=self.mrmr_cols,
                                                    data_cols=self.Data.cols)
             else:
                 P = feature.create_population(inds=self.N, size=self.Data.D)
@@ -119,18 +122,22 @@ class Differential:
                                   metric=self.metric, method=method)
             if self.mrmr:
                 # We take the best mrmr feature subset and add random solutions to create population
-                P_tmp = feature.create_population(inds=self.N-1, size=self.Data.D)
+                P_tmp = feature.create_population(inds=self.N - 1, size=self.Data.D)
                 index = (-np.array(scores)).argsort()[::1][0]
                 scores_tmp, scoresA_tmp, scoresP_tmp, scoresR_tmp, scoresF_tmp, models_tmp, cols_tmp = \
                     de.evaluation_pop(n_class=self.Data.n_class, data=self.Data.data, P=P_tmp, target=self.Data.target,
                                       metric=self.metric, method=method)
-                [scores[index]].append(scores_tmp)
-                [scoresA[index]].append(scoresA_tmp)
-                [scoresR[index]].append(scoresR_tmp)
-                [scoresF[index]].append(scoresF_tmp)
-                [models[index]].append(models_tmp)
-                [cols[index]].append(cols_tmp)
-                [P[index]].append(P_tmp)
+                scores_tmp.append(scores[index])
+                scoresA_tmp.append(scoresA[index])
+                scoresP_tmp.append(scoresP[index])
+                scoresR_tmp.append(scoresR[index])
+                scoresF_tmp.append(scoresF[index])
+                models_tmp.append(models[index])
+                cols_tmp.append(cols[index])
+                P = np.vstack((P_tmp, P[index]))
+                scores, scoresA, scoresP, scoresR, scoresF, models, cols = scores_tmp, scoresA_tmp, scoresP_tmp, \
+                                                                           scoresR_tmp, scoresF_tmp, models_tmp, \
+                                                                           cols_tmp
 
             bestScore, worstScore, bestModel, bestInd, bestCols, bestScoreA, bestScoreP, bestScoreR, \
             bestScoreF, bestScorePro, bestModelPro, bestIndsPro, bestColsPro, bestAPro, bestPPro, bestRPro, bestFPro = \
@@ -155,7 +162,7 @@ class Differential:
             # Main process iteration (generation iteration)
             while True:
                 instant = time.time()
-                # successful crossover rate
+                # Successful crossover rates
                 sCR = []
                 # p parameter calculation
                 p = max(1, round(self.N * (1 - (math.sqrt((G / self.Gmax) * self.alpha)))))
@@ -169,7 +176,7 @@ class Differential:
                     indices = (-np.array(scores)).argsort()[:p]
                     # Crossover Rate for i
                     CR = de.get_cross_proba(muCR=muCR, scale=0.1)
-                    # union between the population P and the archive A
+                    # Union between the population P and the archive A
                     P_A = np.vstack((P, A))
                     # Choose the value of Xpbest
                     pindex = de.get_pindex(i=i, lst=Pprime, indices=indices)
@@ -186,12 +193,12 @@ class Differential:
                                           target=self.Data.target, metric=self.metric, method=method)
                     # Comparison between Xi and Ui
                     if scores[i] < score_m or ((scores[i] == score_m) and (len(cols[i]) > len(col_m))):
-                        # Add the rejected individual in the archive
+                        # Add the rejected individual in the Archive
                         A.append((P[i]))
                         # Update population
                         P[i], scores[i], scoresA[i], scoresP[i], scoresR[i], scoresF[i], models[i], cols[i] = \
                             Ui, score_m, accuracy_m, precision_m, recall_m, fscore_m, model_m, col_m
-                        # Add the successful croosover rate
+                        # Add the successful crossover rates
                         sCR.append(CR)
                         bestScore, worstScore, bestModel, bestInd, bestCols, bestScoreA, bestScoreP, bestScoreR, \
                         bestScoreF, bestScorePro, bestModelPro, bestIndsPro, bestColsPro, bestAPro, bestPPro, \
@@ -217,10 +224,10 @@ class Differential:
                     feature.add_axis(bestScore=bestScore, meanScore=mean_scores, iteration=G, n_features=len(bestCols),
                                      time_debut=time_debut, x1=x1, y1=y1, y2=y2, yTps=yTps, yVars=yVars)
                 # Create graphics at each generation
-                feature.plot_feature(x1=x1, y1=y1, y2=y2, yTps=yTps, yVars=yVars, n_pop=self.N, n_gen=self.Gmax,
-                                     heuristic="Binary progressive learning differential evolution",
-                                     folderName=folderName, path=self.path2, bestScore=bestScore,
-                                     mean_scores=mean_scores, time_total=time_debut.total_seconds(), metric=self.metric)
+                feature.plot(x1=x1, y1=y1, y2=y2, yTps=yTps, yVars=yVars, n_pop=self.N, n_gen=self.Gmax,
+                             heuristic="Binary progressive learning differential evolution",
+                             folderName=folderName, path=self.path2, bestScore=bestScore,
+                             mean_scores=mean_scores, time_total=time_debut.total_seconds(), metric=self.metric)
                 # Update which individual is the best
                 if bestScore > scoreMax:
                     scoreMax, modelMax, indMax, colMax, scoreAMax, scorePMax, scoreRMax, scoreFMax = \
@@ -232,7 +239,7 @@ class Differential:
                                bestScoreP=scorePMax, bestScoreR=scoreRMax, bestScoreF=scoreFMax, bestModel=modelMax,
                                bestInd=indMax, debut=debut, out=print_out, yTps=yTps, yVars=yVars, method=method)
                 # No need to continue when all individuals are the same
-                if sum(entropy)/len(entropy) < 0.03:
+                if sum(entropy) / len(entropy) < self.entropy:
                     break
             besties, names, iters, times, names2, features, names3 = \
                 queue.put_(y2=y2, folderName=folderName, scoreMax=scoreMax, iteration=G, yTps=yTps,
@@ -256,7 +263,7 @@ class Differential:
         pool = multiprocessing.Pool(processes=len(mods))
         pool.starmap(self.differential_evolution, arglist)
         pool.close()
-        bestiesLst, namesLst, itersLst, timesLst, names2Lst, featuresLst, names3Lst =\
+        bestiesLst, namesLst, itersLst, timesLst, names2Lst, featuresLst, names3Lst = \
             queue.get_(n_process=len(mods), besties=besties, names=names, names2=names2, iters=iters, times=times,
                        features=features, names3=names3)
         pool.join()
